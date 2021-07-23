@@ -149,7 +149,7 @@ bool irc_send_msg(std::string data) {
 }
 
 bool irc_login() {
-    std::string data_nick = "NICK justinfan733";
+    std::string data_nick = "NICK justinfan7331";
     if (irc_send_msg(data_nick.c_str())) {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "sent NICK");
         std::string data_user = "USER yo 8 * :client";
@@ -180,61 +180,76 @@ bool irc_join(std::string channel) {
     return false;
 }
 
-void irc_parse(char* line, int len) {
+
+int irc_parse_separators = 0;
+char *irc_parse_write_head = nullptr;
+struct irc_message *current_msg = nullptr;
+
+int irc_parse_append_till_separator(const char *line, const int line_pos, const int line_len, const char *separator, bool incomplete) {
+    const char *append_end = strstr(&line[line_pos], separator);
+    int bytes = 0;
+    if (append_end == nullptr) {
+        bytes = line_len - line_pos;
+    } else {
+        bytes = append_end - &line[line_pos];
+    }
+    memcpy(irc_parse_write_head, &line[line_pos], bytes);
+    irc_parse_write_head += bytes;
+    if (append_end != nullptr || (irc_parse_separators == 3 && !incomplete)) {
+        irc_parse_write_head[0] = '\0';
+        bytes++;
+        switch (irc_parse_separators) {
+            case 0: irc_parse_write_head = current_msg->name; break;
+            case 1: irc_parse_write_head = current_msg->command; break;
+            case 2: irc_parse_write_head = current_msg->msg; break;
+            case 3: irc_parse_write_head = current_msg->msg; break;
+            default: break;
+        }
+        irc_parse_separators++;
+    }
+    return bytes;
+}
+
+void irc_parse(char* line, int len, bool irc_parse_incomplete) {
     __android_log_write(ANDROID_LOG_DEBUG, "irc_client", line);
 
-    struct irc_message *current_msg = &ring_buffer_[ring_position_];
-    memset(current_msg, 0, sizeof(struct irc_message));
+    if (irc_parse_write_head == nullptr) {
+        current_msg = &ring_buffer_[ring_position_];
+        memset(current_msg, 0, sizeof(struct irc_message));
+        irc_parse_write_head = current_msg->prefix;
+    }
 
-    char *first_space = strstr(line, " ");
-    if (first_space != nullptr) {
-        int first_space_offset = first_space - line;
-        if (first_space[1] == ':') {
-            memcpy(current_msg->prefix, line, first_space_offset);
-            current_msg->prefix[first_space_offset] = '\0';
+    int line_pos = 0;
 
-            __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_prefix", current_msg->prefix);
+    do {
+        if (irc_parse_separators < 4) {
+            line_pos += irc_parse_append_till_separator(line, line_pos, len, " ", irc_parse_incomplete);
+        } else {
+            line_pos += irc_parse_append_till_separator(line, line_pos, len, "\n", irc_parse_incomplete);
+        }
+    } while (line_pos < len);
 
-            char *second_space = strstr(&first_space[1], " ");
-            if (second_space == nullptr) {
-                if (strstr(current_msg->prefix, "PING") != nullptr) {
-                    char response_buf[256];
-                    snprintf(response_buf, 255, "PONG %s", &first_space[1]);
-                    if (irc_send_msg(response_buf)) {
-                        __android_log_write(ANDROID_LOG_DEBUG, "irc_client", response_buf);
-                    }
-                }
-            } else {
-                int second_space_offset = second_space - 2 - (first_space - 1);
-                memcpy(current_msg->name, &first_space[1], second_space_offset);
-                current_msg->name[second_space_offset] = '\0';
+    __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_prefix", current_msg->prefix);
+    __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_name", current_msg->name);
+    __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_command", current_msg->command);
+    __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_msg", current_msg->msg);
 
-                __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_name", current_msg->name);
-
-                char *third_space = strstr(&second_space[1], " ");
-                if (third_space != nullptr) {
-                    int third_space_offset = third_space - 2 - (second_space - 1);
-                    memcpy(current_msg->command, &second_space[1], third_space_offset);
-                    current_msg->command[third_space_offset] = '\0';
-
-                    __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_command", current_msg->command);
-
-                    char *msg = strstr(&third_space[1], ":");
-                    if (msg != nullptr) {
-                        int msg_offset = msg - (third_space - 1);
-                        int msg_len = len - (first_space_offset + 1 + second_space_offset + 1 + third_space_offset + msg_offset);
-                        memcpy(current_msg->msg, &msg[1], msg_len);
-                        current_msg->msg[msg_len] = '\0';
-
-                        __android_log_write(ANDROID_LOG_DEBUG, "irc_client msg_msg", current_msg->msg);
-
-                        ring_position_inc();
-                    }
-                }
+    if (!irc_parse_incomplete) {
+        irc_parse_separators = 0;
+        irc_parse_write_head = nullptr;
+        if (strstr(current_msg->command, "PRIVMSG") != nullptr) {
+            ring_position_inc();
+        } else if (strstr(current_msg->prefix, "PING") != nullptr) {
+            char response_buf[256];
+            snprintf(response_buf, 255, "PONG %s", current_msg->name);
+            if (irc_send_msg(response_buf)) {
+                __android_log_write(ANDROID_LOG_DEBUG, "irc_client", response_buf);
             }
         }
     }
 }
+
+bool irc_receive_last_incomplete = false;
 
 void irc_receive_loop() {
     while (connected_) {
@@ -248,18 +263,24 @@ void irc_receive_loop() {
                     eol_o++;
                     line_end--;
                 }
-                while (line_start[0] == ' ') {
-                    line_start++;
-                    if (line_start[0] == '\0') {
-                        line_start = nullptr;
-                        break;
+                if (!irc_receive_last_incomplete) {
+                    while (line_start[0] == ' ') {
+                        line_start++;
+                        if (line_start[0] == '\0') {
+                            line_start = nullptr;
+                            break;
+                        }
                     }
                 }
-                irc_parse(line_start, line_end-line_start);
+                __android_log_write(ANDROID_LOG_DEBUG, "irc_client line", "complete!");
+                irc_receive_last_incomplete = false;
+                irc_parse(line_start, line_end-line_start, false);
                 line_start = line_end + eol_o;
             }
-            if (line_start != nullptr) {
-                irc_parse(line_start, len - (line_start - buffer_));
+            if (line_start - buffer_ < len && line_start != nullptr) {
+                __android_log_write(ANDROID_LOG_DEBUG, "irc_client line", "incomplete!");
+                irc_receive_last_incomplete = true;
+                irc_parse(line_start, len - (line_start - buffer_), true);
             }
         }
     }
@@ -276,7 +297,7 @@ JNIEXPORT jstring JNICALL Java_de_mur1_yo_MainActivity_stringFromJNI(JNIEnv *env
         if (irc_login()) {
             pthread_create(&receive_thread, nullptr, (void *(*)(void*))&irc_receive_loop, nullptr);
             if (irc_enable_twitch_tags()) {
-                irc_join("summit1g");
+                irc_join("xqcow");
             }
         }
     }
@@ -296,6 +317,8 @@ JNIEXPORT jstring JNICALL Java_de_mur1_yo_UpdateData_updateMessage(JNIEnv *env, 
     }
     pthread_mutex_unlock(&ring_position_lock_);
     return env->NewStringUTF(result_ss.str().c_str());
+
+    //return env->NewStringUTF("");
 }
 
 #ifdef __cplusplus
