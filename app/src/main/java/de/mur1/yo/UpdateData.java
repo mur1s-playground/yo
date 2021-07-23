@@ -121,7 +121,7 @@ public class UpdateData implements Runnable {
                     } catch (Exception e) {
                     }
 
-                    String message = splt[3];
+                    String message = splt[3].substring(1);
 
                     if (display_name != null) {
                         Handler mainHandler = new Handler(context.getMainLooper());
