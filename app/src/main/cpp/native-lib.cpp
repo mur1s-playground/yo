@@ -20,10 +20,47 @@
 #include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/ssl.h>
 #include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/err.h>
 #include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/x509v3.h>
+#include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/pem.h>
+#include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/sha.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+unsigned char* sha256_get(unsigned char* to_hash, int to_hash_len) {
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    unsigned char* hash = (unsigned char*)malloc((SHA256_DIGEST_LENGTH + 1) * sizeof(unsigned char));
+    SHA256_Update(&sha256, to_hash, to_hash_len);
+    SHA256_Final(hash, &sha256);
+    hash[SHA256_DIGEST_LENGTH] = '\0';
+    return hash;
+}
+
+char* base64_encode(unsigned char* to_encode, size_t length) {
+    char* encoded;
+
+    BIO* bio, *b64;
+    BUF_MEM* bufferPtr;
+
+    b64 = BIO_new(BIO_f_base64());
+    bio = BIO_new(BIO_s_mem());
+    bio = BIO_push(b64, bio);
+
+    BIO_write(bio, to_encode, length);
+    BIO_flush(bio);
+    BIO_get_mem_ptr(bio, &bufferPtr);
+    BIO_set_close(bio, BIO_NOCLOSE);
+    BIO_free_all(bio);
+
+    encoded = (char*)malloc(bufferPtr->length + 1);
+    memcpy(encoded, bufferPtr->data, bufferPtr->length);
+    encoded[bufferPtr->length] = '\0';
+    free(bufferPtr);
+
+    return encoded;
+}
+
 
 void jni_getUTFChars(JNIEnv *env, jstring jstr, char **out_char) {
     jboolean is_copy = false;
@@ -358,6 +395,7 @@ struct tls_client {
     BIO *bio;
     BIO *ssl_bio;
     bool connected;
+    bool running;
 };
 
 SSL *tls_bio_get_ssl(BIO *bio) {
@@ -369,7 +407,36 @@ SSL *tls_bio_get_ssl(BIO *bio) {
     return ssl;
 }
 
+const char *tls_valid_cert_b64 = "bQKEDdXdCb6V5cQbvJgflQx6MdVOWWgLVK9ZLd14vKY=";
+
 bool tls_cert_verify(SSL *ssl, const char *hostname) {
+    X509 *cert = SSL_get_peer_certificate(ssl);
+    if (cert == nullptr) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "error no cert");
+        return false;
+    }
+
+    BIO *cert_b = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509(cert_b, cert);
+    BUF_MEM *mem = NULL;
+    BIO_get_mem_ptr(cert_b, &mem);
+
+    unsigned char *cert_hash = sha256_get((unsigned char *)mem->data, mem->length);
+    char *cert_hash_b64 = base64_encode(cert_hash, SHA256_DIGEST_LENGTH);
+    BIO_free_all(cert_b);
+    free(cert_hash);
+
+    __android_log_write(ANDROID_LOG_DEBUG, "tls", cert_hash_b64);
+    __android_log_write(ANDROID_LOG_DEBUG, "tls", tls_valid_cert_b64);
+    free(cert_hash_b64);
+
+    if (strstr(cert_hash_b64, tls_valid_cert_b64) != cert_hash_b64) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "invalid cert");
+        return false;
+    }
+
+    X509_free(cert);
+/*
     int err = SSL_get_verify_result(ssl);
     if (err != X509_V_OK) {
         std::stringstream cv_err;
@@ -377,11 +444,7 @@ bool tls_cert_verify(SSL *ssl, const char *hostname) {
         __android_log_write(ANDROID_LOG_ERROR, "tls", cv_err.str().c_str());
         return false;
     }
-    X509 *cert = SSL_get_peer_certificate(ssl);
-    if (cert == nullptr) {
-        __android_log_write(ANDROID_LOG_ERROR, "tls", "error no cert");
-        return false;
-    }
+*/
     if (X509_check_host(cert, hostname, strlen(hostname), 0, nullptr) != 1) {
         __android_log_write(ANDROID_LOG_ERROR, "tls", "error cert hostname mismatch");
         return false;
@@ -414,7 +477,6 @@ bool tls_client_init(struct tls_client *tls_c) {
         return false;
     }
 
-
     SSL_set_tlsext_host_name(tls_bio_get_ssl(tls_c->ssl_bio), "irc.chat.twitch.tv");
     SSL_set1_host(tls_bio_get_ssl(tls_c->ssl_bio), "irc.chat.twitch.tv");
     int err = BIO_do_handshake(tls_c->ssl_bio);
@@ -424,12 +486,11 @@ bool tls_client_init(struct tls_client *tls_c) {
         __android_log_write(ANDROID_LOG_ERROR, "tls", err_code.str().c_str());
         return false;
     }
-    /* TODO: fix cert
-/*
+
     if (!tls_cert_verify(tls_bio_get_ssl(tls_c->ssl_bio), "irc.chat.twitch.tv")) {
         return false;
     }
-*/
+
     tls_c->connected = true;
     return true;
 }
@@ -475,8 +536,11 @@ void tls_clients_disconnect_all() {
         std::stringstream ms;
         ms << "disconnect initiated for " << it->first;
         __android_log_write(ANDROID_LOG_DEBUG, "tls_client", ms.str().c_str());
-        to_remove.push_back(it->first);
         tls_client_disconnect(it->second);
+        if (!it->second->running) {
+            free(it->second);
+            to_remove.push_back(it->first);
+        }
         it++;
     }
     for (int i = 0; i < to_remove.size(); i++) {
@@ -641,6 +705,7 @@ bool irc_receive_last_incomplete = false;
 
 void irc_receive_loop(void *param) {
     struct tls_client *tls_c = (struct tls_client *) param;
+    tls_c->running = true;
     __android_log_write(ANDROID_LOG_DEBUG, "receive thread", "start!");
     while (tls_c->connected) {
         int len = tls_client_read(tls_c, buffer_);
@@ -675,7 +740,7 @@ void irc_receive_loop(void *param) {
         }
     }
     __android_log_write(ANDROID_LOG_DEBUG, "receive thread", "exit!");
-    free(tls_c);
+    tls_c->running = false;
 }
 
 JNIEXPORT void JNICALL Java_de_mur1_yo_MainActivity_setSettings(JNIEnv *env, jobject, jstring channel, jstring username, jstring token) {
@@ -705,6 +770,7 @@ JNIEXPORT jstring JNICALL Java_de_mur1_yo_MainActivity_connect(JNIEnv *env, jobj
     free(hash_c);
 
     struct tls_client *tls_c = (struct tls_client *) malloc(sizeof(struct tls_client));
+    tls_c->running = false;
     std::string status = "";
 
     if (irc_connect(tls_c)) {
