@@ -161,7 +161,8 @@ public class MainActivity extends AppCompatActivity {
     public static void reconnectIRC() {
         Log.d("MainActivity", "reconnectIRC!");
         setSettings(setting_channel, setting_username, setting_token);
-        connect();
+        String md5 = getRandomMD5();
+        connect(md5);
     }
 
     public static void updateToken(String token) {
@@ -299,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
      * which is packaged with this application.
      */
     public static native void initNative();
-    public static native String connect();
+    public static native String connect(String hash);
     public static native void setSettings(String channel, String username, String token);
     public native static boolean prepareTokenReceive(String code);
 }

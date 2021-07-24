@@ -14,6 +14,12 @@
 
 #include <sstream>
 #include <vector>
+#include <map>
+
+#include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/bio.h>
+#include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/ssl.h>
+#include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/err.h>
+#include </home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include/openssl/x509v3.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -326,11 +332,9 @@ struct irc_message {
 char *channel_ = nullptr;
 char *username_ = nullptr;
 
-int *socket_current = nullptr;
-int socket_ = -1;
-
-bool *connected_current = nullptr;
 bool connected_ = false;
+std::map<std::string, struct tls_client *>  tls_clients_ = std::map<std::string, struct tls_client *>();
+pthread_mutex_t tls_clients_lock_;
 
 int ring_position_r_ = 0;
 int ring_position_ = 0;
@@ -349,104 +353,168 @@ void ring_position_inc() {
     pthread_mutex_unlock(&ring_position_lock_);
 }
 
-bool socket_init() {
-    if ((socket_ = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+struct tls_client {
+    SSL_CTX *ctx;
+    BIO *bio;
+    BIO *ssl_bio;
+    bool connected;
+};
+
+SSL *tls_bio_get_ssl(BIO *bio) {
+    SSL *ssl = nullptr;
+    BIO_get_ssl(bio, &ssl);
+    if (ssl == nullptr) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "error getting tls_bio_get_ssl");
+    }
+    return ssl;
+}
+
+bool tls_cert_verify(SSL *ssl, const char *hostname) {
+    int err = SSL_get_verify_result(ssl);
+    if (err != X509_V_OK) {
+        std::stringstream cv_err;
+        cv_err << "error cert verify: " << err;
+        __android_log_write(ANDROID_LOG_ERROR, "tls", cv_err.str().c_str());
         return false;
     }
-
-    int on = 1;
-    if (setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, (char const*) &on, sizeof(on)) == -1) {
+    X509 *cert = SSL_get_peer_certificate(ssl);
+    if (cert == nullptr) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "error no cert");
         return false;
     }
-
-    fcntl(socket_, F_SETFL, O_NONBLOCK);
-    fcntl(socket_, F_SETFL, O_ASYNC);
-
+    if (X509_check_host(cert, hostname, strlen(hostname), 0, nullptr) != 1) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "error cert hostname mismatch");
+        return false;
+    }
     return true;
 }
 
-bool socket_connect() {
-    hostent* he;
+bool tls_client_init(struct tls_client *tls_c) {
+    SSL_library_init();
 
-    if (!(he = gethostbyname("irc.chat.twitch.tv"))) {
+    __android_log_write(ANDROID_LOG_DEBUG, "tls", "client_init");
+    tls_c->ctx = SSL_CTX_new(TLS_client_method());
+    SSL_CTX_set_min_proto_version(tls_c->ctx, TLS1_2_VERSION);
+
+    if (SSL_CTX_set_default_verify_paths(tls_c->ctx) != 1) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "error loading trust store");
         return false;
     }
 
-    sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(6667);
-    addr.sin_addr = *((const in_addr*)he->h_addr);
-    //memset(&(addr.sin_zero), '\0', 8);
-
-    if (connect(socket_, (sockaddr*)&addr, sizeof(addr)) == -1) {
-        close(socket_);
+    tls_c->bio = BIO_new_connect("irc.chat.twitch.tv:6697");
+    if (BIO_do_connect(tls_c->bio) <= 0) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "error connecting to host");
         return false;
     }
 
-    connected_ = true;
-    connected_current = &connected_;
+    tls_c->ssl_bio = BIO_new_ssl(tls_c->ctx, 1);
+    BIO_push(tls_c->ssl_bio, tls_c->bio);
+    if (tls_c->ssl_bio == NULL) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls", "error creating ssl filter");
+        return false;
+    }
+
+
+    SSL_set_tlsext_host_name(tls_bio_get_ssl(tls_c->ssl_bio), "irc.chat.twitch.tv");
+    SSL_set1_host(tls_bio_get_ssl(tls_c->ssl_bio), "irc.chat.twitch.tv");
+    int err = BIO_do_handshake(tls_c->ssl_bio);
+    if (err <= 0) {
+        std::stringstream err_code;
+        err_code << "error ssl handshake: " << err;
+        __android_log_write(ANDROID_LOG_ERROR, "tls", err_code.str().c_str());
+        return false;
+    }
+    /* TODO: fix cert
+/*
+    if (!tls_cert_verify(tls_bio_get_ssl(tls_c->ssl_bio), "irc.chat.twitch.tv")) {
+        return false;
+    }
+*/
+    tls_c->connected = true;
     return true;
 }
 
-void socket_disconnect(int fd, bool *connected) {
-    __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "disconnecting");
-    if (*connected) {
-        close(fd);
-        *connected = false;
-    }
+void tls_client_disconnect(struct tls_client *tls_c) {
+    tls_c->connected = false;
 }
 
-bool socket_send_data(int fd, bool *connected, const char* data) {
-    if (*connected) {
-        if (send(fd, data, strlen(data), 0) == -1) {
-            return false;
-        }
-        return true;
-    }
-    return false;
-}
-
-int socket_recv_data(int fd, bool *connected, char *data_out) {
+int tls_client_read(struct tls_client *tls_c, char* data_out) {
     memset(data_out, 0, MAXDATASIZE);
 
-    int bytes = recv(fd, data_out, MAXDATASIZE - 1, 0);
+    int bytes = BIO_read(tls_c->ssl_bio, data_out, MAXDATASIZE - 1);
 
     if (bytes > 0) {
         return bytes;
     } else {
-        __android_log_write(ANDROID_LOG_ERROR, "irc_client", "socket_recv_data failed");
-        socket_disconnect(fd, connected);
+        __android_log_write(ANDROID_LOG_ERROR, "tls_client", "read failed");
+        tls_client_disconnect(tls_c);
     }
     return 0;
 }
 
-bool irc_connect() {
-    bool s_i = socket_init();
+bool tls_client_send(struct tls_client *tls_c, const char* data) {
+    int len = strlen(data);
+    if (BIO_write(tls_c->ssl_bio, data, len) != len) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls_client", "write failed/incomplete");
+        tls_client_disconnect(tls_c);
+        return false;
+    }
+    if (BIO_flush(tls_c->ssl_bio) <= 0) {
+        __android_log_write(ANDROID_LOG_ERROR, "tls_client", "flush failed");
+        tls_client_disconnect(tls_c);
+        return false;
+    }
+    return true;
+}
+
+void tls_clients_disconnect_all() {
+    pthread_mutex_lock(&tls_clients_lock_);
+    std::map<std::string, struct tls_client *>::iterator it = tls_clients_.begin();
+    std::vector<std::string> to_remove = std::vector<std::string>();
+    while (it != tls_clients_.end()) {
+        std::stringstream ms;
+        ms << "disconnect initiated for " << it->first;
+        __android_log_write(ANDROID_LOG_DEBUG, "tls_client", ms.str().c_str());
+        to_remove.push_back(it->first);
+        tls_client_disconnect(it->second);
+        it++;
+    }
+    for (int i = 0; i < to_remove.size(); i++) {
+        tls_clients_.erase(to_remove[i]);
+    }
+    pthread_mutex_unlock(&tls_clients_lock_);
+}
+
+void tls_client_add(std::string hash, struct tls_client *tls_c) {
+    pthread_mutex_lock(&tls_clients_lock_);
+    std::stringstream ms;
+    ms << "added " << hash;
+    __android_log_write(ANDROID_LOG_DEBUG, "tls_client", ms.str().c_str());
+    tls_clients_.insert(std::pair<std::string, struct tls_client *>(hash, tls_c));
+    pthread_mutex_unlock(&tls_clients_lock_);
+}
+
+bool irc_connect(struct tls_client *tls_c) {
+    bool s_i = tls_client_init(tls_c);
     if (!s_i) {
         __android_log_write(ANDROID_LOG_ERROR, "irc_client", "socket_init failed");
     } else {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "socket_init successful");
-        bool s_c = socket_connect();
-        if (!s_c) {
-            __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "socket_connect failed");
-        } else {
-            __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "socket_connect successful");
-            return true;
-        }
-    }
-    return false;
-}
-
-bool irc_send_msg(int fd, bool *connected, std::string data) {
-    data += "\n";
-    if (socket_send_data(fd, connected, data.c_str())) {
         return true;
     }
-    socket_disconnect(fd, connected);
     return false;
 }
 
-bool irc_login() {
+bool irc_send_msg(struct tls_client *tls_c, std::string data) {
+    data += "\n";
+    if (tls_client_send(tls_c, data.c_str())) {
+        return true;
+    }
+    tls_client_disconnect(tls_c);
+    return false;
+}
+
+bool irc_login(struct tls_client *tls_c) {
     bool auth_set = false;
     if (strlen(token_) > 0) {
         auth_set = true;
@@ -454,7 +522,7 @@ bool irc_login() {
         std::stringstream data_pass_ss;
         data_pass_ss << "PASS oauth:" << token_;
         std::string data_pass = data_pass_ss.str();
-        if (irc_send_msg(*socket_current, connected_current, data_pass.c_str())) {
+        if (irc_send_msg(tls_c, data_pass.c_str())) {
             __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "sent PASS");
         } else {
             return false;
@@ -470,10 +538,10 @@ bool irc_login() {
     }
 
     std::string data_nick = data_nick_ss.str();
-    if (irc_send_msg(*socket_current, connected_current, data_nick.c_str())) {
+    if (irc_send_msg(tls_c, data_nick.c_str())) {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "sent NICK");
         std::string data_user = "USER yo 8 * :client";
-        if (irc_send_msg(*socket_current, connected_current, data_user.c_str())) {
+        if (irc_send_msg(tls_c, data_user.c_str())) {
             __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "sent USER");
             __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "logged in");
             return true;
@@ -482,18 +550,18 @@ bool irc_login() {
     return false;
 }
 
-bool irc_enable_twitch_tags() {
+bool irc_enable_twitch_tags(struct tls_client* tls_c) {
     std::string data_ext = "CAP REQ :twitch.tv/tags";
-    if (irc_send_msg(*socket_current, connected_current, data_ext.c_str())) {
+    if (irc_send_msg(tls_c, data_ext.c_str())) {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "enabled twitch tags");
         return true;
     }
     return false;
 }
 
-bool irc_join(std::string channel) {
+bool irc_join(struct tls_client* tls_c, std::string channel) {
     std::string join_chan = "join #" + channel;
-    if (irc_send_msg(*socket_current, connected_current, join_chan.c_str())) {
+    if (irc_send_msg(tls_c, join_chan.c_str())) {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", join_chan.c_str());
         return true;
     }
@@ -530,7 +598,7 @@ int irc_parse_append_till_separator(const char *line, const int line_pos, const 
     return bytes;
 }
 
-void irc_parse(int fd, bool *connected, char* line, int len, bool irc_parse_incomplete) {
+void irc_parse(struct tls_client *tls_c, char* line, int len, bool irc_parse_incomplete) {
     __android_log_write(ANDROID_LOG_DEBUG, "irc_client", line);
 
     if (irc_parse_write_head == nullptr) {
@@ -562,7 +630,7 @@ void irc_parse(int fd, bool *connected, char* line, int len, bool irc_parse_inco
         } else if (strstr(current_msg->prefix, "PING") != nullptr) {
             char response_buf[256];
             snprintf(response_buf, 255, "PONG %s", current_msg->name);
-            if (irc_send_msg(fd, connected, response_buf)) {
+            if (irc_send_msg(tls_c, response_buf)) {
                 __android_log_write(ANDROID_LOG_DEBUG, "irc_client", response_buf);
             }
         }
@@ -571,12 +639,11 @@ void irc_parse(int fd, bool *connected, char* line, int len, bool irc_parse_inco
 
 bool irc_receive_last_incomplete = false;
 
-void irc_receive_loop() {
-    int fd = *socket_current;
-    bool connected = *connected_current;
+void irc_receive_loop(void *param) {
+    struct tls_client *tls_c = (struct tls_client *) param;
     __android_log_write(ANDROID_LOG_DEBUG, "receive thread", "start!");
-    while (connected) {
-        int len = socket_recv_data(fd, &connected, buffer_);
+    while (tls_c->connected) {
+        int len = tls_client_read(tls_c, buffer_);
         if (len > 0) {
             char *line_start = buffer_;
             char *line_end = nullptr;
@@ -597,24 +664,22 @@ void irc_receive_loop() {
                 }
                 __android_log_write(ANDROID_LOG_DEBUG, "irc_client line", "complete!");
                 irc_receive_last_incomplete = false;
-                irc_parse(fd, &connected, line_start, line_end-line_start, false);
+                irc_parse(tls_c, line_start, line_end-line_start, false);
                 line_start = line_end + eol_o;
             }
             if (line_start - buffer_ < len && line_start != nullptr) {
                 __android_log_write(ANDROID_LOG_DEBUG, "irc_client line", "incomplete!");
                 irc_receive_last_incomplete = true;
-                irc_parse(fd, &connected, line_start, len - (line_start - buffer_), true);
+                irc_parse(tls_c, line_start, len - (line_start - buffer_), true);
             }
         }
     }
     __android_log_write(ANDROID_LOG_DEBUG, "receive thread", "exit!");
+    free(tls_c);
 }
 
 JNIEXPORT void JNICALL Java_de_mur1_yo_MainActivity_setSettings(JNIEnv *env, jobject, jstring channel, jstring username, jstring token) {
-    if (socket_current != nullptr) {
-        socket_disconnect(*socket_current, connected_current);
-        socket_current = nullptr;
-    }
+    tls_clients_disconnect_all();
 
     if (channel_ != nullptr) {
         free(channel_);
@@ -631,20 +696,23 @@ JNIEXPORT void JNICALL Java_de_mur1_yo_MainActivity_setSettings(JNIEnv *env, job
     jni_getUTFChars(env, token, &token_);
 }
 
-JNIEXPORT jstring JNICALL Java_de_mur1_yo_MainActivity_connect(JNIEnv *env, jobject /* this */) {
-    if (socket_current != nullptr) {
-        socket_disconnect(*socket_current, connected_current);
-        socket_current = nullptr;
-    }
+JNIEXPORT jstring JNICALL Java_de_mur1_yo_MainActivity_connect(JNIEnv *env, jobject /* this */, jstring hash) {
+    tls_clients_disconnect_all();
 
+    char *hash_c;
+    jni_getUTFChars(env, hash, &hash_c);
+    std::string hash_str(hash_c);
+    free(hash_c);
+
+    struct tls_client *tls_c = (struct tls_client *) malloc(sizeof(struct tls_client));
     std::string status = "";
 
-    if (irc_connect()) {
-        socket_current = &socket_;
-        if (irc_login()) {
-            pthread_create(&receive_thread, nullptr, (void *(*)(void*))&irc_receive_loop, nullptr);
-            if (irc_enable_twitch_tags()) {
-                irc_join(channel_);
+    if (irc_connect(tls_c)) {
+        tls_client_add(hash_str, tls_c);
+        if (irc_login(tls_c)) {
+            pthread_create(&receive_thread, nullptr, (void *(*)(void*))&irc_receive_loop, (void*) tls_c);
+            if (irc_enable_twitch_tags(tls_c)) {
+                irc_join(tls_c, channel_);
             }
         }
     }
@@ -673,6 +741,8 @@ bool native_initialized = false;
 
 JNIEXPORT void JNICALL Java_de_mur1_yo_MainActivity_initNative(JNIEnv *env, jobject) {
     if (!native_initialized) {
+        pthread_mutex_init(&tls_clients_lock_, nullptr);
+
         buffer_ = (char *) malloc(MAXDATASIZE);
         ring_buffer_ = (struct irc_message *) malloc(ring_size_ * sizeof(struct irc_message));
         pthread_mutex_init(&ring_position_lock_, nullptr);

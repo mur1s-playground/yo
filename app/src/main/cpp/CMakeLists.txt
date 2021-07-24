@@ -5,14 +5,24 @@
 
 cmake_minimum_required(VERSION 3.10.2)
 
+include_directories(/home/mur1/Downloads/openssl_android_root/openssl-1.1.1k/include)
+
 # Declares and names the project.
 
 project("yo")
+
+
 
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.
 # You can define multiple libraries, and CMake builds them for you.
 # Gradle automatically packages shared libraries with your APK.
+
+add_library(lib_ssl STATIC IMPORTED)
+set_target_properties(lib_ssl PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libssl.a)
+
+add_library(lib_crypto STATIC IMPORTED)
+set_target_properties(lib_crypto PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libcrypto.a)
 
 add_library( # Sets the name of the library.
              native-lib
@@ -22,6 +32,8 @@ add_library( # Sets the name of the library.
 
              # Provides a relative path to your source file(s).
              native-lib.cpp )
+
+
 
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
@@ -41,7 +53,10 @@ find_library( # Sets the name of the path variable.
 # build script, prebuilt third-party libraries, or system libraries.
 
 target_link_libraries( # Specifies the target library.
-                       native-lib
+                        native-lib
+
+                        lib_ssl
+                        lib_crypto
 
                        # Links the target library to the log library
                        # included in the NDK.
