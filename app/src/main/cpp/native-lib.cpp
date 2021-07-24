@@ -252,6 +252,8 @@ void token_receiver_process_request(void *param) {
 }
 
 void token_receiver_listen_loop() {
+    __android_log_write(ANDROID_LOG_DEBUG, "token_receiver", "listen loop started");
+    token_receiver_listen = true;
     while (token_receiver_listen) {
         sockaddr client_sockaddr;
         socklen_t client_len = sizeof(client_sockaddr);
@@ -269,6 +271,7 @@ void token_receiver_listen_loop() {
         }
     }
     token_receiver_thread = -1L;
+    __android_log_write(ANDROID_LOG_DEBUG, "token_receiver", "listen loop ended");
 }
 
 JNIEXPORT jstring JNICALL Java_de_mur1_yo_UpdateToken_getTokenIfReady(JNIEnv *env, jobject) {
@@ -323,7 +326,10 @@ struct irc_message {
 char *channel_ = nullptr;
 char *username_ = nullptr;
 
+int *socket_current = nullptr;
 int socket_ = -1;
+
+bool *connected_current = nullptr;
 bool connected_ = false;
 
 int ring_position_r_ = 0;
@@ -378,20 +384,21 @@ bool socket_connect() {
     }
 
     connected_ = true;
+    connected_current = &connected_;
     return true;
 }
 
-void socket_disconnect() {
+void socket_disconnect(int fd, bool *connected) {
     __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "disconnecting");
-    if (connected_) {
-        close(socket_);
-        connected_ = false;
+    if (*connected) {
+        close(fd);
+        *connected = false;
     }
 }
 
-bool socket_send_data(const char* data) {
-    if (connected_) {
-        if (send(socket_, data, strlen(data), 0) == -1) {
+bool socket_send_data(int fd, bool *connected, const char* data) {
+    if (*connected) {
+        if (send(fd, data, strlen(data), 0) == -1) {
             return false;
         }
         return true;
@@ -399,16 +406,16 @@ bool socket_send_data(const char* data) {
     return false;
 }
 
-int socket_recv_data(char *data_out) {
+int socket_recv_data(int fd, bool *connected, char *data_out) {
     memset(data_out, 0, MAXDATASIZE);
 
-    int bytes = recv(socket_, data_out, MAXDATASIZE - 1, 0);
+    int bytes = recv(fd, data_out, MAXDATASIZE - 1, 0);
 
     if (bytes > 0) {
         return bytes;
     } else {
         __android_log_write(ANDROID_LOG_ERROR, "irc_client", "socket_recv_data failed");
-        socket_disconnect();
+        socket_disconnect(fd, connected);
     }
     return 0;
 }
@@ -430,12 +437,12 @@ bool irc_connect() {
     return false;
 }
 
-bool irc_send_msg(std::string data) {
+bool irc_send_msg(int fd, bool *connected, std::string data) {
     data += "\n";
-    if (socket_send_data(data.c_str())) {
+    if (socket_send_data(fd, connected, data.c_str())) {
         return true;
     }
-    socket_disconnect();
+    socket_disconnect(fd, connected);
     return false;
 }
 
@@ -447,7 +454,7 @@ bool irc_login() {
         std::stringstream data_pass_ss;
         data_pass_ss << "PASS oauth:" << token_;
         std::string data_pass = data_pass_ss.str();
-        if (irc_send_msg(data_pass.c_str())) {
+        if (irc_send_msg(*socket_current, connected_current, data_pass.c_str())) {
             __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "sent PASS");
         } else {
             return false;
@@ -463,10 +470,10 @@ bool irc_login() {
     }
 
     std::string data_nick = data_nick_ss.str();
-    if (irc_send_msg(data_nick.c_str())) {
+    if (irc_send_msg(*socket_current, connected_current, data_nick.c_str())) {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "sent NICK");
         std::string data_user = "USER yo 8 * :client";
-        if (irc_send_msg(data_user.c_str())) {
+        if (irc_send_msg(*socket_current, connected_current, data_user.c_str())) {
             __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "sent USER");
             __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "logged in");
             return true;
@@ -477,7 +484,7 @@ bool irc_login() {
 
 bool irc_enable_twitch_tags() {
     std::string data_ext = "CAP REQ :twitch.tv/tags";
-    if (irc_send_msg(data_ext.c_str())) {
+    if (irc_send_msg(*socket_current, connected_current, data_ext.c_str())) {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", "enabled twitch tags");
         return true;
     }
@@ -486,7 +493,7 @@ bool irc_enable_twitch_tags() {
 
 bool irc_join(std::string channel) {
     std::string join_chan = "join #" + channel;
-    if (irc_send_msg(join_chan.c_str())) {
+    if (irc_send_msg(*socket_current, connected_current, join_chan.c_str())) {
         __android_log_write(ANDROID_LOG_DEBUG, "irc_client", join_chan.c_str());
         return true;
     }
@@ -523,7 +530,7 @@ int irc_parse_append_till_separator(const char *line, const int line_pos, const 
     return bytes;
 }
 
-void irc_parse(char* line, int len, bool irc_parse_incomplete) {
+void irc_parse(int fd, bool *connected, char* line, int len, bool irc_parse_incomplete) {
     __android_log_write(ANDROID_LOG_DEBUG, "irc_client", line);
 
     if (irc_parse_write_head == nullptr) {
@@ -555,7 +562,7 @@ void irc_parse(char* line, int len, bool irc_parse_incomplete) {
         } else if (strstr(current_msg->prefix, "PING") != nullptr) {
             char response_buf[256];
             snprintf(response_buf, 255, "PONG %s", current_msg->name);
-            if (irc_send_msg(response_buf)) {
+            if (irc_send_msg(fd, connected, response_buf)) {
                 __android_log_write(ANDROID_LOG_DEBUG, "irc_client", response_buf);
             }
         }
@@ -565,9 +572,11 @@ void irc_parse(char* line, int len, bool irc_parse_incomplete) {
 bool irc_receive_last_incomplete = false;
 
 void irc_receive_loop() {
+    int fd = *socket_current;
+    bool connected = *connected_current;
     __android_log_write(ANDROID_LOG_DEBUG, "receive thread", "start!");
-    while (connected_) {
-        int len = socket_recv_data(buffer_);
+    while (connected) {
+        int len = socket_recv_data(fd, &connected, buffer_);
         if (len > 0) {
             char *line_start = buffer_;
             char *line_end = nullptr;
@@ -588,24 +597,25 @@ void irc_receive_loop() {
                 }
                 __android_log_write(ANDROID_LOG_DEBUG, "irc_client line", "complete!");
                 irc_receive_last_incomplete = false;
-                irc_parse(line_start, line_end-line_start, false);
+                irc_parse(fd, &connected, line_start, line_end-line_start, false);
                 line_start = line_end + eol_o;
             }
             if (line_start - buffer_ < len && line_start != nullptr) {
                 __android_log_write(ANDROID_LOG_DEBUG, "irc_client line", "incomplete!");
                 irc_receive_last_incomplete = true;
-                irc_parse(line_start, len - (line_start - buffer_), true);
+                irc_parse(fd, &connected, line_start, len - (line_start - buffer_), true);
             }
         }
     }
-    receive_thread = -1L;
     __android_log_write(ANDROID_LOG_DEBUG, "receive thread", "exit!");
 }
 
 JNIEXPORT void JNICALL Java_de_mur1_yo_MainActivity_setSettings(JNIEnv *env, jobject, jstring channel, jstring username, jstring token) {
-    if (receive_thread > -1L) {
-        socket_disconnect();
+    if (socket_current != nullptr) {
+        socket_disconnect(*socket_current, connected_current);
+        socket_current = nullptr;
     }
+
     if (channel_ != nullptr) {
         free(channel_);
     }
@@ -622,19 +632,15 @@ JNIEXPORT void JNICALL Java_de_mur1_yo_MainActivity_setSettings(JNIEnv *env, job
 }
 
 JNIEXPORT jstring JNICALL Java_de_mur1_yo_MainActivity_connect(JNIEnv *env, jobject /* this */) {
-    socket_disconnect();
-
-    while (receive_thread > -1L) {
-        usleep(10);
+    if (socket_current != nullptr) {
+        socket_disconnect(*socket_current, connected_current);
+        socket_current = nullptr;
     }
-
-    buffer_ = (char *) malloc(MAXDATASIZE);
-    ring_buffer_ = (struct irc_message *) malloc(ring_size_ * sizeof(struct irc_message));
-    pthread_mutex_init(&ring_position_lock_, nullptr);
 
     std::string status = "";
 
     if (irc_connect()) {
+        socket_current = &socket_;
         if (irc_login()) {
             pthread_create(&receive_thread, nullptr, (void *(*)(void*))&irc_receive_loop, nullptr);
             if (irc_enable_twitch_tags()) {
@@ -657,8 +663,22 @@ JNIEXPORT jstring JNICALL Java_de_mur1_yo_UpdateData_updateMessage(JNIEnv *env, 
     }
     pthread_mutex_unlock(&ring_position_lock_);
     return env->NewStringUTF(result_ss.str().c_str());
+}
 
-    //return env->NewStringUTF("");
+JNIEXPORT jboolean JNICALL Java_de_mur1_yo_UpdateData_isIRCConnected(JNIEnv *env, jobject) {
+    return connected_;
+}
+
+bool native_initialized = false;
+
+JNIEXPORT void JNICALL Java_de_mur1_yo_MainActivity_initNative(JNIEnv *env, jobject) {
+    if (!native_initialized) {
+        buffer_ = (char *) malloc(MAXDATASIZE);
+        ring_buffer_ = (struct irc_message *) malloc(ring_size_ * sizeof(struct irc_message));
+        pthread_mutex_init(&ring_position_lock_, nullptr);
+
+        native_initialized = true;
+    }
 }
 
 #ifdef __cplusplus

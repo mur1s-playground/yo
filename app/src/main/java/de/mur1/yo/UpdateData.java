@@ -150,6 +150,9 @@ public class UpdateData implements Runnable {
 
                 }
             } else {
+                if (!isIRCConnected()) {
+
+                }
                 try {
                     Thread.sleep(100);
                 } catch(Exception e) {
@@ -160,4 +163,5 @@ public class UpdateData implements Runnable {
     }
 
     public native String updateMessage();
+    public native boolean isIRCConnected();
 }

@@ -1,11 +1,13 @@
 package de.mur1.yo;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.os.HandlerCompat;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -14,10 +16,15 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.view.Window;
+import android.widget.LinearLayout;
 import android.widget.Toast;
+
+import com.google.android.flexbox.FlexboxLayout;
 
 import java.util.Random;
 import java.util.Vector;
@@ -44,6 +51,8 @@ public class MainActivity extends AppCompatActivity {
     public static RecyclerView.LayoutManager chatLayoutManager;
     public static Boolean chatAtBottom = true;
 
+    public static SharedPreferences shared_pref = null;
+
     public static String setting_channel = "";
     public static String setting_username = "";
     public static String setting_token = "";
@@ -54,23 +63,133 @@ public class MainActivity extends AppCompatActivity {
     public static String token_request_md5 = "";
     public static String active_username = "";
 
+    public static String token_request_url = "";
     public static boolean waiting_for_token = false;
+    public static boolean start_token_activity = false;
     public static boolean irc_connected = false;
 
-    public static void updateToken(String token) {
-        setting_token = token;
-        //SettingsFragment.setEditTextPreferenceToken(token);
-        waiting_for_token = false;
-        Log.d("Setting Token", "!");
+    public static void updateSharedPreferences() {
+        Log.d("MainActivity", "updateSharedPreferences!");
 
+        boolean reconnect = false;
+        boolean token_force_verify = false;
+        boolean token_request = false;
+
+        String channel_new = shared_pref.getString(SettingsActivity.SETTING_CHANNEL, "m1_1m");
+        if (!channel_new.equals(setting_channel)) {
+            setting_channel = channel_new;
+            reconnect = true;
+        }
+
+        String username_new = shared_pref.getString(SettingsActivity.SETTING_USERNAME, "justinfan1337");
+        if (!username_new.equals(setting_username)) {
+            setting_username = username_new;
+            reconnect = true;
+            if (!username_new.startsWith("justinfan")) {
+                token_force_verify = true;
+                token_request = true;
+
+                if (setting_token.length() == 0) {
+                    setting_token = shared_pref.getString(SettingsActivity.SETTING_TOKEN, "");
+                    reconnect = true;
+                }
+
+                boolean chat_read_new = shared_pref.getBoolean(SettingsActivity.SETTING_CHAT_READ, false);
+                if (chat_read_new != setting_chat_read) {
+                    setting_chat_read = chat_read_new;
+                    reconnect = true;
+                    token_request = true;
+                }
+
+                boolean chat_edit_new = shared_pref.getBoolean(SettingsActivity.SETTING_CHAT_EDIT, false);
+                if (chat_edit_new != setting_chat_edit) {
+                    setting_chat_edit = chat_edit_new;
+                    reconnect = true;
+                    token_request = true;
+                }
+
+                boolean channel_moderate_new = shared_pref.getBoolean(SettingsActivity.SETTING_CHANNEL_MODERATE, false);
+                if (channel_moderate_new != setting_channel_moderate) {
+                    setting_channel_moderate = channel_moderate_new;
+                    reconnect = true;
+                    token_request = true;
+                }
+
+                String scope = "";
+                if (setting_chat_read) {
+                    scope += "chat:read";
+                }
+                if (setting_chat_edit) {
+                    if (scope.length() > 0) {
+                        scope += " ";
+                    }
+                    scope += "chat:edit";
+                }
+                if (setting_channel_moderate) {
+                    if (scope.length() > 0) {
+                        scope += " ";
+                    }
+                    scope += "channel:moderate";
+                }
+
+                if (!setting_chat_read && !setting_chat_edit && !setting_channel_moderate) {
+                    active_username = "justinfan1337";
+                } else {
+                    active_username = setting_username;
+                }
+
+                if (token_request) {
+                    token_request_md5 = getRandomMD5();
+                    if (prepareTokenReceive(token_request_md5)) {
+                        token_request_url = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=<client-id>&redirect_uri=http://localhost:8765&scope=" + scope + "&state=" + token_request_md5;
+                        if (token_force_verify) {
+                            token_request_url += "&force_verify=true";
+                        }
+                        waiting_for_token = true;
+                        start_token_activity = true;
+                    } else {
+                        //error handling
+                    }
+                }
+            }
+        }
+        if (!waiting_for_token && reconnect) {
+            reconnectIRC();
+        }
+    }
+
+    public static void reconnectIRC() {
+        Log.d("MainActivity", "reconnectIRC!");
         setSettings(setting_channel, setting_username, setting_token);
         connect();
+    }
+
+    public static void updateToken(String token) {
+        Log.d("MainActivity", "updateToken!");
+        setting_token = token;
+        waiting_for_token = false;
+
+        reconnectIRC();
+    }
+
+    public void startTokenActivity() {
+        if (start_token_activity) {
+            start_token_activity = false;
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(token_request_url));
+            try {
+                startActivity(i);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Toast.makeText(getApplicationContext(), "Token request failed!", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private static IRCMessage[] ircMessages = null;
 
     public static void initIRCMessages() {
         if (ircMessages == null) {
+            Log.d("MainActivity", "initIRCMessages!");
             ircMessages = new IRCMessage[250];
             for (int i = 0; i < ircMessages.length; i++) {
                 ircMessages[i] = new IRCMessage();
@@ -84,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private String getRandomMD5() {
+    private static String getRandomMD5() {
         StringBuilder result = new StringBuilder();
         String[] md5_alphabet = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f" };
         Random r = new Random();
@@ -102,39 +221,32 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.action_settings:
-                Intent intent = new Intent(this, SettingsActivity.class);
-                startActivity(intent);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.action_settings) {
+            Intent intent = new Intent(this, SettingsActivity.class);
+            startActivity(intent);
         }
-    }
-
-    @Override
-    public void onSaveInstanceState(Bundle savedInstanceState) {
-        super.onSaveInstanceState(savedInstanceState);
-        savedInstanceState.putBoolean("waiting_for_token", waiting_for_token);
-    }
-
-    public void onRestoreInstanceState(Bundle savedInstanceState) {
-        super.onRestoreInstanceState(savedInstanceState);
-        waiting_for_token = savedInstanceState.getBoolean("waiting_for_token", false);
-    }
-
-    protected void onPause() {
-        super.onPause();
-
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        executor_service_token = Executors.newSingleThreadExecutor();
-        executor_service = Executors.newSingleThreadExecutor();
-        main_thread_handler = HandlerCompat.createAsync(Looper.getMainLooper());
+        initNative();
+
+        if (executor_service_token == null) {
+            executor_service_token = Executors.newSingleThreadExecutor();
+        } else if (executor_service_token.isTerminated()) {
+            executor_service_token = Executors.newSingleThreadExecutor();
+        }
+        if (executor_service == null) {
+            executor_service = Executors.newSingleThreadExecutor();
+        } else if (executor_service.isTerminated()) {
+            executor_service = Executors.newSingleThreadExecutor();
+        }
+        if (main_thread_handler == null) {
+            main_thread_handler = HandlerCompat.createAsync(Looper.getMainLooper());
+        }
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         getWindow().requestFeature(Window.FEATURE_ACTION_BAR);
@@ -142,71 +254,23 @@ public class MainActivity extends AppCompatActivity {
 
         PreferenceManager.setDefaultValues(this, R.xml.settings, false);
 
-        SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
-        setting_channel = sharedPref.getString(SettingsActivity.SETTING_CHANNEL, "m1_1m");
-        setting_username = sharedPref.getString(SettingsActivity.SETTING_USERNAME, "justinfan1337");
-        if (setting_token.length() == 0) {
-            setting_token = sharedPref.getString(SettingsActivity.SETTING_TOKEN, "");
-        }
-        setting_chat_read = sharedPref.getBoolean(SettingsActivity.SETTING_CHAT_READ, false);
-        setting_chat_edit = sharedPref.getBoolean(SettingsActivity.SETTING_CHAT_EDIT, false);
-        setting_channel_moderate = sharedPref.getBoolean(SettingsActivity.SETTING_CHANNEL_MODERATE, false);
+        shared_pref = PreferenceManager.getDefaultSharedPreferences(this);
 
-        String scope = "";
-        if (setting_chat_read) {
-            scope += "chat:read";
-        }
-        if (setting_chat_edit) {
-            if (scope.length() > 0) {
-                scope += " ";
-            }
-            scope += "chat:edit";
-        }
-        if (setting_channel_moderate) {
-            if (scope.length() > 0) {
-                scope += " ";
-            }
-            scope += "channel:moderate";
-        }
-
-        if (!setting_chat_read && !setting_chat_edit && !setting_channel_moderate) {
-            active_username = "justinfan1337";
-        } else {
-            active_username = setting_username;
-        }
-        if (!active_username.startsWith("justinfan")) {
-            if (!waiting_for_token) {
-                if (setting_token.length() == 0) {
-                    token_request_md5 = getRandomMD5();
-                    if (prepareTokenReceive(token_request_md5)) {
-                        String url = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=<client-id>&redirect_uri=http://localhost:8765&scope=" + scope + "&state=" + token_request_md5;
-                        Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                        try {
-                            waiting_for_token = true;
-                            startActivity(i);
-                        } catch (Exception e) {
-                            Toast.makeText(getApplicationContext(), "Token request failed!", Toast.LENGTH_LONG).show();
-                        }
-                    } else {
-                        Toast.makeText(getApplicationContext(), "Token receive could not be prepared!", Toast.LENGTH_LONG).show();
-                    }
-                }
-            }
-        }
-
+        updateSharedPreferences();
         if (waiting_for_token) {
-            Log.d("Executing UpdateToken", "!");
+            Log.d("MainActivity", "executor_service_token execute!");
+            startTokenActivity();
             executor_service_token.execute(new UpdateToken(getApplicationContext()));
         } else {
-            irc_connected = true;
-            Log.d("Executing IRCConnect", "onCreate!");
+            reconnectIRC();
+        }
 
-            initIRCMessages();
+        initIRCMessages();
 
-            chatRecyclerView = binding.chatView;
-            chatLayoutManager = new LinearLayoutManager(getBaseContext());
-            chatRecyclerView.setLayoutManager(chatLayoutManager);
-            chatRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+        chatRecyclerView = binding.chatView;
+        chatLayoutManager = new LinearLayoutManager(getBaseContext());
+        chatRecyclerView.setLayoutManager(chatLayoutManager);
+        chatRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override
                 public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
                     super.onScrollStateChanged(recyclerView, newState);
@@ -217,46 +281,16 @@ public class MainActivity extends AppCompatActivity {
                         chatAtBottom = false;
                     }
                 }
-            });
-            chatAdapter = new ChatAdapter(ircMessages);
+        });
+        chatAdapter = new ChatAdapter(ircMessages);
+        chatRecyclerView.setAdapter(chatAdapter);
 
-            chatRecyclerView.setAdapter(chatAdapter);
-
-            executor_service.execute(new UpdateData(getApplicationContext()));
-        }
+        executor_service.execute(new UpdateData(getApplicationContext()));
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-
-        if (!irc_connected) {
-            irc_connected = true;
-            Log.d("Executing IRCConnect", "onResume!");
-
-            initIRCMessages();
-
-            chatRecyclerView = binding.chatView;
-            chatLayoutManager = new LinearLayoutManager(getBaseContext());
-            chatRecyclerView.setLayoutManager(chatLayoutManager);
-            chatRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-                @Override
-                public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
-                    super.onScrollStateChanged(recyclerView, newState);
-
-                    if (!recyclerView.canScrollVertically(1)) {
-                        chatAtBottom = true;
-                    } else {
-                        chatAtBottom = false;
-                    }
-                }
-            });
-            chatAdapter = new ChatAdapter(ircMessages);
-
-            chatRecyclerView.setAdapter(chatAdapter);
-
-            executor_service.execute(new UpdateData(getApplicationContext()));
-        }
     }
 
 
@@ -264,7 +298,8 @@ public class MainActivity extends AppCompatActivity {
      * A native method that is implemented by the 'native-lib' native library,
      * which is packaged with this application.
      */
+    public static native void initNative();
     public static native String connect();
     public static native void setSettings(String channel, String username, String token);
-    public native boolean prepareTokenReceive(String code);
+    public native static boolean prepareTokenReceive(String code);
 }
