@@ -1,0 +1,6 @@
+channel;m1_1m
+file_interval_seconds;1
+certificate_hash;8X8ThYzPyo7QDk1mEloDT/DXEVGQ88tte3iD1F67TLg=
+delete_older_than_seconds;120
+pass;<oauth-token>
+nick;m1_1m
