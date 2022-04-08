@@ -61,6 +61,19 @@
         android:text="5" />
 
     <TextView
+        android:id="@+id/textViewLabelChatTimeoutInterval"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Chat timeout interval (in seconds)" />
+
+    <EditText
+        android:id="@+id/editTextNumberChatTimeoutIntervalSeconds"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="number" />
+
+    <TextView
         android:id="@+id/textViewLabelChatChunkTimestamp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -92,8 +105,7 @@
         android:id="@+id/textViewLabelFeedBacklogSize"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="TextView"
-        tools:text="Feed Displayed Messages Count" />
+        android:text="Feed Displayed Messages Count" />
 
     <EditText
         android:id="@+id/editTextNumberFeedDisplayedMessagesCount"

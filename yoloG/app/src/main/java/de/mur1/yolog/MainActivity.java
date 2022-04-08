@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
+    static String               files_internal_path = null;
+    static String               settings_path       = null;
+
     LinearLayout menu_inc       = null;
 
     LinearLayout lock_inc       = null;
@@ -78,9 +81,28 @@ public class MainActivity extends AppCompatActivity {
         content_inc.setVisibility(View.GONE);
         settings_inc.setVisibility(View.VISIBLE);
 
+        EditText chat_server_ip = (EditText) settings_inc.findViewById(R.id.editTextIP);
+        chat_server_ip.setText(Settings.getStringSetting(Settings.SETTING_CHAT_SERVER_IP));
+
+        EditText chat_server_port = (EditText) settings_inc.findViewById(R.id.editTextNumberPort);
+        chat_server_port.setText(String.valueOf(Settings.getIntSetting(Settings.SETTING_CHAT_SERVER_PORT)));
+
+        EditText chat_update_ival_s = (EditText) settings_inc.findViewById(R.id.editTextNumberChatUpdateInterval);
+        chat_update_ival_s.setText(String.valueOf(Settings.getIntSetting(Settings.SETTING_CHAT_UPDATE_INTERVAL_SECONDS)));
+
+        EditText chat_timeout_ival_s = (EditText) settings_inc.findViewById(R.id.editTextNumberChatTimeoutIntervalSeconds);
+        chat_timeout_ival_s.setText(String.valueOf(Settings.getIntSetting(Settings.SETTING_CHAT_UPDATE_TIMEOUT_SECONDS)));
+
         EditText chat_chunk_ts = (EditText) settings_inc.findViewById(R.id.editTextNumberChatChunkTimestamp);
         chat_chunk_override_value = update_chat.getLastChatChunkTimestamp();
         chat_chunk_ts.setText(String.valueOf(chat_chunk_override_value));
+
+        EditText chat_displayed_messages_count = (EditText)settings_inc.findViewById(R.id.editTextNumberDisplayedMessagesCount);
+        chat_displayed_messages_count.setText(String.valueOf(Settings.getIntSetting(Settings.SETTING_CHAT_BACKLOG_SIZE)));
+        Settings.setIntSetting(Settings.SETTING_CHAT_BACKLOG_SIZE, Integer.parseInt(chat_displayed_messages_count.getText().toString()));
+
+        EditText feed_displayed_message_count = (EditText)settings_inc.findViewById(R.id.editTextNumberFeedDisplayedMessagesCount);
+        feed_displayed_message_count.setText(String.valueOf(Settings.getIntSetting(Settings.SETTING_FEED_BACKLOG_SIZE)));
     }
 
     public void saveApplySettings() {
@@ -94,6 +116,9 @@ public class MainActivity extends AppCompatActivity {
             EditText chat_update_ival_s = (EditText) settings_inc.findViewById(R.id.editTextNumberChatUpdateInterval);
             Settings.setIntSetting(Settings.SETTING_CHAT_UPDATE_INTERVAL_SECONDS, Integer.parseInt(chat_update_ival_s.getText().toString()));
 
+            EditText chat_timeout_ival_s = (EditText) settings_inc.findViewById(R.id.editTextNumberChatTimeoutIntervalSeconds);
+            Settings.setIntSetting(Settings.SETTING_CHAT_UPDATE_TIMEOUT_SECONDS, Integer.parseInt(chat_timeout_ival_s.getText().toString()));
+
             EditText chat_chunk_ts = (EditText) settings_inc.findViewById(R.id.editTextNumberChatChunkTimestamp);
             long chat_chunk_ts_l = Long.parseLong(chat_chunk_ts.getText().toString());
             Settings.setLongSetting(Settings.SETTING_CHAT_CHUNK_TIMESTAMP, chat_chunk_ts_l);
@@ -101,9 +126,14 @@ public class MainActivity extends AppCompatActivity {
             EditText chat_displayed_messages_count = (EditText)settings_inc.findViewById(R.id.editTextNumberDisplayedMessagesCount);
             Settings.setIntSetting(Settings.SETTING_CHAT_BACKLOG_SIZE, Integer.parseInt(chat_displayed_messages_count.getText().toString()));
 
+            EditText feed_displayed_message_count = (EditText)settings_inc.findViewById(R.id.editTextNumberFeedDisplayedMessagesCount);
+            Settings.setIntSetting(Settings.SETTING_FEED_BACKLOG_SIZE, Integer.parseInt(feed_displayed_message_count.getText().toString()));
+
             if (chat_chunk_override_value != chat_chunk_ts_l) {
                 update_chat.overrideLastChatChunkTimestamp(chat_chunk_ts_l);
             }
+
+            Settings.writeToDisk(settings_path);
         } catch (Exception e) {}
         closeSettings();
     }
@@ -118,6 +148,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        files_internal_path = getApplicationContext().getFilesDir().getAbsolutePath();
+        settings_path = files_internal_path + "/settings.json";
+        Settings.init(settings_path);
 
         /* MENU */
         menu_inc = (LinearLayout) this.findViewById(R.id.menu_inc);
