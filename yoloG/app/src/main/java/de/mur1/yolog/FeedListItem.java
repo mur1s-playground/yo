@@ -18,9 +18,10 @@ public class FeedListItem {
     TextView        timeView;
     FlexboxLayout   messageFlexbox;
 
-    public void addMessageFlexboxText(String text, int color, boolean padding, boolean bold) {
+    public void addMessageFlexboxText(String text, int color, int background_color, boolean padding, boolean bold) {
         TextView tv = new TextView(context);
         tv.setTextColor(color);
+        tv.setBackgroundColor(background_color);
         tv.setText(text);
         if (bold) tv.setTypeface(null, Typeface.BOLD);
         messageFlexbox.addView(tv);
@@ -53,13 +54,22 @@ public class FeedListItem {
 
         clearMessageFlexbox();
 
-        addMessageFlexboxText(irc_m.display_time, Color.parseColor("#000000"), true, false);
-        addMessageFlexboxText(irc_m.display_name, irc_m.name_color, true, true);
+        this.view.setBackgroundColor(ThemeManager.active_theme.background_color);
 
-        if (irc_m.ban_duration == 0) {
-            addMessageFlexboxText("BAN", Color.parseColor("#FF0000"), true, true);
+        addMessageFlexboxText(irc_m.display_time, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, false);
+/*
+        int diff_s = Util.color_diff(irc_m.name_color, ThemeManager.active_theme.background_color);
+        int diff_i = Util.color_diff(irc_m.name_color, ThemeManager.active_theme.background_color_inv);
+        if (diff_s >= diff_i) {
+            addMessageFlexboxText(irc_m.display_name, irc_m.name_color, ThemeManager.active_theme.background_color, true, true);
         } else {
-            addMessageFlexboxText("TIMEOUT", Color.parseColor("#FF8800"), true, true);
+            addMessageFlexboxText(irc_m.display_name, irc_m.name_color, ThemeManager.active_theme.background_color_inv, true, true);
+        }
+*/
+        if (irc_m.ban_duration == 0) {
+            addMessageFlexboxText("BAN", Color.parseColor("#FF0000"), ThemeManager.active_theme.background_color, true, true);
+        } else {
+            addMessageFlexboxText("TIMEOUT", Color.parseColor("#FF8800"), ThemeManager.active_theme.background_color, true, true);
             String time = "";
             int minutes = irc_m.ban_duration / 60;
             if (minutes > 0) {
@@ -69,11 +79,10 @@ public class FeedListItem {
             if (seconds > 0) {
                 time += seconds + "s";
             }
-            addMessageFlexboxText(time , Color.parseColor("#000000"), true, true);
+            addMessageFlexboxText(time , ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, true);
         }
 
-
-        addMessageFlexboxText(irc_m.message, Color.parseColor("#000000"), true, false);
+        addMessageFlexboxText(irc_m.message, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, false);
     }
 
 

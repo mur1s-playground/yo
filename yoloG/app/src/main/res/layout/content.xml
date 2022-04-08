@@ -11,6 +11,7 @@
     <include layout="@layout/feed" />
 
     <View
+        android:id="@+id/feed_chat_separator"
         android:layout_width="match_parent"
         android:layout_height="5dp"
         android:background="#0D1D66" />

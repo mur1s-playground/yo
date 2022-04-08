@@ -9,6 +9,13 @@
     android:orientation="vertical">
 
     <include layout="@layout/menu" />
+
+    <View
+        android:id="@+id/menu_content_separator"
+        android:layout_width="match_parent"
+        android:layout_height="5dp"
+        android:background="#0D1D66" />
+
     <include layout="@layout/lock" />
     <include layout="@layout/settings" />
     <include layout="@layout/content" />

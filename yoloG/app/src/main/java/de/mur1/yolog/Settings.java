@@ -8,6 +8,7 @@ public class Settings extends SettingsManager {
     public static final String     SETTING_CHAT_CHUNK_TIMESTAMP            = "CHAT_CHUNK_TIMESTAMP";
     public static final String     SETTING_CHAT_BACKLOG_SIZE               = "CHAT_BACKLOG_SIZE";
     public static final String     SETTING_FEED_BACKLOG_SIZE               = "FEED_BACKLOG_SIZE";
+    public static final String     SETTING_THEME                           = "THEME";
 
     static void init(String filepath) {
         addSetting(SETTING_CHAT_SERVER_IP               , Setting.TYPE_STRING   , "192.168.178.24");
@@ -17,6 +18,7 @@ public class Settings extends SettingsManager {
         addSetting(SETTING_CHAT_CHUNK_TIMESTAMP         , Setting.TYPE_LONG     , 0L);
         addSetting(SETTING_CHAT_BACKLOG_SIZE            , Setting.TYPE_INT      , 500);
         addSetting(SETTING_FEED_BACKLOG_SIZE            , Setting.TYPE_INT      , 25);
+        addSetting(SETTING_THEME                        , Setting.TYPE_STRING   , ThemeManager.light);
 
         if (filepath != null) {
             loadFromDisk(filepath);

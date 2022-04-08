@@ -10,12 +10,15 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AbsListView;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.SeekBar;
+import android.widget.Spinner;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -103,6 +106,16 @@ public class MainActivity extends AppCompatActivity {
 
         EditText feed_displayed_message_count = (EditText)settings_inc.findViewById(R.id.editTextNumberFeedDisplayedMessagesCount);
         feed_displayed_message_count.setText(String.valueOf(Settings.getIntSetting(Settings.SETTING_FEED_BACKLOG_SIZE)));
+
+        Spinner setting_theme = settings_inc.findViewById(R.id.spinnerTheme);
+        String active_name = Settings.getStringSetting(Settings.SETTING_THEME);
+        for (int i = 0; i < setting_theme.getAdapter().getCount(); i++) {
+            if (((String) setting_theme.getItemAtPosition(i)).equals(active_name)) {
+                setting_theme.setSelection(i);
+                break;
+            }
+        }
+
     }
 
     public void saveApplySettings() {
@@ -133,6 +146,9 @@ public class MainActivity extends AppCompatActivity {
                 update_chat.overrideLastChatChunkTimestamp(chat_chunk_ts_l);
             }
 
+            Spinner setting_theme = settings_inc.findViewById(R.id.spinnerTheme);
+            Settings.setStringSetting(Settings.SETTING_THEME, (String) setting_theme.getSelectedItem());
+
             Settings.writeToDisk(settings_path);
         } catch (Exception e) {}
         closeSettings();
@@ -144,14 +160,36 @@ public class MainActivity extends AppCompatActivity {
         content_inc.setVisibility(View.VISIBLE);
     }
 
+    public void onThemeSwitch() {
+        ThemeManager.applyTheme(menu_inc);
+        ThemeManager.applyTheme(lock_inc);
+
+        View menu_content_separator = this.findViewById(R.id.menu_content_separator);
+        menu_content_separator.setBackgroundColor(ThemeManager.active_theme.text_color);
+
+        ThemeManager.applyTheme(settings_inc);
+        ThemeManager.applyTheme(feed_inc);
+        ThemeManager.applyTheme(chat_inc);
+
+        View feed_chat_separator = content_inc.findViewById(R.id.feed_chat_separator);
+        feed_chat_separator.setBackgroundColor(ThemeManager.active_theme.text_color);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         files_internal_path = getApplicationContext().getFilesDir().getAbsolutePath();
+
         settings_path = files_internal_path + "/settings.json";
         Settings.init(settings_path);
+
+        ThemeManager.init();
+        String active_theme = Settings.getStringSetting(Settings.SETTING_THEME);
+        if (active_theme != null) {
+            ThemeManager.setTheme(active_theme);
+        }
 
         /* MENU */
         menu_inc = (LinearLayout) this.findViewById(R.id.menu_inc);
@@ -205,6 +243,23 @@ public class MainActivity extends AppCompatActivity {
 
         /* SETTINGS */
         settings_inc = this.findViewById(R.id.settings_inc);
+        Spinner setting_theme = settings_inc.findViewById(R.id.spinnerTheme);
+        String[] themes = ThemeManager.getAvailableThemeNames();
+        ArrayAdapter<String> theme_adapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_spinner_item, themes);
+        setting_theme.setAdapter(theme_adapter);
+        setting_theme.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                ThemeManager.setTheme((String) setting_theme.getSelectedItem());
+                onThemeSwitch();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {
+
+            }
+        });
+
         ImageButton close_settings = settings_inc.findViewById(R.id.imageButtonCancel);
         close_settings.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -267,6 +322,7 @@ public class MainActivity extends AppCompatActivity {
         /* */
         deactivateLock();
         closeSettings();
+        onThemeSwitch();
 
         update_chat = new UpdateChat();
         Thread update_chat_t = new Thread(update_chat);

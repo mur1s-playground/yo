@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/settings_inc"
@@ -12,6 +11,8 @@
         android:id="@+id/textViewLabelServerIPPort"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
         android:text="Server IP:Port" />
 
     <LinearLayout
@@ -26,6 +27,7 @@
             android:layout_weight="1"
             android:ems="10"
             android:inputType="textPersonName"
+            android:layout_marginStart="@dimen/input_margin_start"
             android:text="192.168.178.24" />
 
         <TextView
@@ -50,6 +52,8 @@
         android:id="@+id/textViewLabelChatUpdateIntervalSeconds"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
         android:text="Chat update interval (in seconds)" />
 
     <EditText
@@ -58,12 +62,15 @@
         android:layout_height="wrap_content"
         android:ems="10"
         android:inputType="number"
+        android:layout_marginStart="@dimen/input_margin_start"
         android:text="5" />
 
     <TextView
         android:id="@+id/textViewLabelChatTimeoutInterval"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
         android:text="Chat timeout interval (in seconds)" />
 
     <EditText
@@ -71,12 +78,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ems="10"
+        android:layout_marginStart="@dimen/input_margin_start"
         android:inputType="number" />
 
     <TextView
         android:id="@+id/textViewLabelChatChunkTimestamp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
         android:text="Last Chat Chunk Timestamp" />
 
     <EditText
@@ -85,12 +95,15 @@
         android:layout_height="wrap_content"
         android:ems="10"
         android:inputType="number"
+        android:layout_marginStart="@dimen/input_margin_start"
         android:text="0" />
 
     <TextView
         android:id="@+id/textViewLabelBacklogSize"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
         android:text="Chat Displayed Messages Count" />
 
     <EditText
@@ -98,13 +111,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ems="10"
-        android:text="500"
-        android:inputType="number" />
+        android:inputType="number"
+        android:layout_marginStart="@dimen/input_margin_start"
+        android:text="500" />
 
     <TextView
         android:id="@+id/textViewLabelFeedBacklogSize"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
         android:text="Feed Displayed Messages Count" />
 
     <EditText
@@ -113,7 +129,26 @@
         android:layout_height="wrap_content"
         android:ems="10"
         android:inputType="number"
+        android:layout_marginStart="@dimen/input_margin_start"
         android:text="25" />
+
+    <TextView
+        android:id="@+id/textViewLabelTheme"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
+        android:text="Theme" />
+
+    <Spinner
+        android:id="@+id/spinnerTheme"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/input_margin_start" />
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="22dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -125,6 +160,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_weight="0"
+            android:layout_marginStart="@dimen/input_margin_start"
             app:srcCompat="@android:drawable/ic_menu_close_clear_cancel" />
 
         <Space
@@ -137,6 +173,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_weight="0"
+            android:layout_marginEnd="@dimen/input_margin_start"
             app:srcCompat="@android:drawable/ic_menu_save" />
     </LinearLayout>
 
