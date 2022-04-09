@@ -13,6 +13,8 @@
         <entry key="app/src/main/res/layout/lock.xml" value="0.2115036231884058" />
         <entry key="app/src/main/res/layout/menu.xml" value="0.2115036231884058" />
         <entry key="app/src/main/res/layout/settings.xml" value="0.2115036231884058" />
+        <entry key="app/src/main/res/layout/settings_direct.xml" value="0.2115036231884058" />
+        <entry key="app/src/main/res/layout/settings_proxy.xml" value="0.2115036231884058" />
       </map>
     </option>
   </component>

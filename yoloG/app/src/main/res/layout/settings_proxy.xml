@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/settings_proxy_inc"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/textViewLabelServerIPPort"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
+        android:text="Server IP:Port" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/editTextIP"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ems="10"
+            android:inputType="textPersonName"
+            android:layout_marginStart="@dimen/input_margin_start"
+            android:text="192.168.178.24" />
+
+        <TextView
+            android:id="@+id/textViewIPPortSeparator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=":" />
+
+        <EditText
+            android:id="@+id/editTextNumberPort"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ems="10"
+            android:inputType="number"
+            android:text="8000" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/textViewLabelChatUpdateIntervalSeconds"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
+        android:text="Chat update interval (in seconds)" />
+
+    <EditText
+        android:id="@+id/editTextNumberChatUpdateInterval"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="number"
+        android:layout_marginStart="@dimen/input_margin_start"
+        android:text="5" />
+
+</LinearLayout>

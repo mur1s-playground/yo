@@ -13,10 +13,12 @@ import java.util.Vector;
 public class IRCMessage {
     public static final int TYPE_PRIVMSG  = 0;
     public static final int TYPE_CLEARMSG = TYPE_PRIVMSG + 1;
+    public static final int TYPE_USERSTATE = TYPE_CLEARMSG + 1;
+    public static final int TYPE_ROOMSTATE = TYPE_USERSTATE + 1;
 
     private long time;
-    private String prefix;
-    private String channel;
+    public  String prefix;
+    public  String channel;
     private String name;
     private String command;
 
@@ -36,6 +38,7 @@ public class IRCMessage {
         String lines[] = chunk.split("\n");
         IRCMessage irc_m = null;
         for (int l = 0; l < lines.length; l++) {
+            if (lines[l].charAt(0) == 0) break;
             if (lines[l].startsWith("time:")) {
                 if (irc_m != null) {
                     result.add(irc_m);
@@ -152,6 +155,12 @@ public class IRCMessage {
                 } else if (irc_m.command.equals("CLEARCHAT")) {
                     t_count[TYPE_CLEARMSG]++;
                     irc_m.type = TYPE_CLEARMSG;
+                } else if (irc_m.command.equals("USERSTATE")) {
+                    t_count[TYPE_USERSTATE]++;
+                    irc_m.type = TYPE_USERSTATE;
+                } else if (irc_m.command.equals("ROOMSTATE")) {
+                    t_count[TYPE_ROOMSTATE]++;
+                    irc_m.type = TYPE_ROOMSTATE;
                 }
             } else if (lines[l].startsWith("channel:")) {
                 irc_m.channel = lines[l].substring((new String("channel:").length()));

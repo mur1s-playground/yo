@@ -56,6 +56,7 @@ public class ChatMessageItem {
         clearMessageFlexbox();
 
         addMessageFlexboxText(irc_m.display_time, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, false);
+        addMessageFlexboxText(irc_m.channel, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, true);
 
         for (int b = 0; b < irc_m.badge_replace.size(); b++) {
             BadgeReplace b_repl = irc_m.badge_replace.get(b);

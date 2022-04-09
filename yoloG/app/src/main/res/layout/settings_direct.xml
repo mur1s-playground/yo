@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/settings_direct_inc"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/textViewLabelIRCNick"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
+        android:text="Nickname" />
+
+    <EditText
+        android:id="@+id/editTextIRCNick"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:layout_marginStart="@dimen/input_margin_start"
+        android:text="justinfan1337" />
+
+    <TextView
+        android:id="@+id/textViewLabelIRCPass"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
+        android:text="OAuth-Token" />
+
+    <EditText
+        android:id="@+id/editTextIRCPassword"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="textPassword" />
+
+    <TextView
+        android:id="@+id/textViewLabelIRCChannel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
+        android:text="Channels (auto-join, comma separated)" />
+
+    <EditText
+        android:id="@+id/editTextIRCChannel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:layout_marginStart="@dimen/input_margin_start"
+        android:text="m1_1m" />
+
+    <TextView
+        android:id="@+id/textViewLabelIRCCertHash"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/label_margin_start"
+        android:layout_marginTop="@dimen/label_margin_top"
+        android:text="Certificate-hash" />
+
+    <EditText
+        android:id="@+id/editTextIRCCertHash"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:layout_marginStart="@dimen/input_margin_start"
+        android:text="8X8ThYzPyo7QDk1mEloDT/DXEVGQ88tte3iD1F67TLg=" />
+</LinearLayout>

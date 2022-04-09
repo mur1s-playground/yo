@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 
 public class UpdateChat implements Runnable {
+    public static final String  CONNECTION_TYPE_DIRECT  = "DIRECT";
+    public static final String  CONNECTION_TYPE_PROXY   = "PROXY";
+
     Semaphore       lock                        = new Semaphore(1, true);
     boolean         running                     = true;
 
@@ -55,7 +58,7 @@ public class UpdateChat implements Runnable {
         return ts;
     }
 
-    private void addChatChunk(long ts, String chat_chunk) {
+    public void addChatChunk(long ts, String chat_chunk) {
         try {
             lock.acquire();
             last_chat_chunk_timestamp = ts;
@@ -176,11 +179,21 @@ public class UpdateChat implements Runnable {
         while (running) {
             int update_interval = Settings.getIntSetting(Settings.SETTING_CHAT_UPDATE_INTERVAL_SECONDS);
 
-            getList();
-
-            try {
-                Thread.sleep(update_interval * 1000);
-            } catch (Exception e) {};
+            if (Settings.getStringSetting(Settings.SETTING_CONNECTION_TYPE).equals(CONNECTION_TYPE_PROXY)) {
+                getList();
+                try {
+                    Thread.sleep(update_interval * 1000);
+                } catch (Exception e) {};
+            } else {
+                char[] msg = UpdateChatDirect.updateMessage();
+                if (msg != null) {
+                    addChatChunk(System.currentTimeMillis() / 1000, new String(msg));
+                } else {
+                    try {
+                        Thread.sleep(16);
+                    } catch (Exception e) {};
+                }
+            }
         }
     }
 }
