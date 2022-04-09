@@ -5,41 +5,12 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="horizontal">
-<!--
-        <TextView
-            android:id="@+id/timeView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="5dp"
-            android:text="TextView" />
-
-        <LinearLayout
-            android:id="@+id/badgesLayout"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-        </LinearLayout>
-        <TextView
-            android:id="@+id/nameView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="5dp"
-            android:text="TextView"
-            android:textStyle="bold" />
--->
-
         <com.google.android.flexbox.FlexboxLayout
             android:id="@+id/messageFlexbox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="5dp"
             app:flexWrap="wrap"
-            ></com.google.android.flexbox.FlexboxLayout>
-
-    </LinearLayout>
+            tools:ignore="MissingConstraints"></com.google.android.flexbox.FlexboxLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -53,10 +53,14 @@ public class FeedListItem {
         this.messageFlexbox = this.view.findViewById(R.id.messageFlexbox);
 
         clearMessageFlexbox();
+        if (ChannelFilterAdapter.isChannelEnabled(irc_m.channel.substring(1))) {
+            this.view.setVisibility(View.VISIBLE);
+            this.messageFlexbox.setVisibility(View.VISIBLE);
 
-        this.view.setBackgroundColor(ThemeManager.active_theme.background_color);
+            this.view.setBackgroundColor(ThemeManager.active_theme.background_color);
 
-        addMessageFlexboxText(irc_m.display_time, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, false);
+            addMessageFlexboxText(irc_m.display_time, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, false);
+            addMessageFlexboxText(irc_m.channel, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, true);
 /*
         int diff_s = Util.color_diff(irc_m.name_color, ThemeManager.active_theme.background_color);
         int diff_i = Util.color_diff(irc_m.name_color, ThemeManager.active_theme.background_color_inv);
@@ -66,23 +70,29 @@ public class FeedListItem {
             addMessageFlexboxText(irc_m.display_name, irc_m.name_color, ThemeManager.active_theme.background_color_inv, true, true);
         }
 */
-        if (irc_m.ban_duration == 0) {
-            addMessageFlexboxText("BAN", Color.parseColor("#FF0000"), ThemeManager.active_theme.background_color, true, true);
-        } else {
-            addMessageFlexboxText("TIMEOUT", Color.parseColor("#FF8800"), ThemeManager.active_theme.background_color, true, true);
-            String time = "";
-            int minutes = irc_m.ban_duration / 60;
-            if (minutes > 0) {
-                time += minutes + "m ";
-            }
-            int seconds = irc_m.ban_duration - minutes * 60;
-            if (seconds > 0) {
-                time += seconds + "s";
-            }
-            addMessageFlexboxText(time , ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, true);
-        }
 
-        addMessageFlexboxText(irc_m.message, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, false);
+
+            if (irc_m.ban_duration == 0) {
+                addMessageFlexboxText("BAN", Color.parseColor("#FF0000"), ThemeManager.active_theme.background_color, true, true);
+            } else {
+                addMessageFlexboxText("TIMEOUT", Color.parseColor("#FF8800"), ThemeManager.active_theme.background_color, true, true);
+                String time = "";
+                int minutes = irc_m.ban_duration / 60;
+                if (minutes > 0) {
+                    time += minutes + "m ";
+                }
+                int seconds = irc_m.ban_duration - minutes * 60;
+                if (seconds > 0) {
+                    time += seconds + "s";
+                }
+                addMessageFlexboxText(time, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, true);
+            }
+
+            addMessageFlexboxText(irc_m.message, ThemeManager.active_theme.text_color, ThemeManager.active_theme.background_color, true, false);
+        } else {
+            this.view.setVisibility(View.GONE);
+            this.messageFlexbox.setVisibility(View.GONE);
+        }
     }
 
 

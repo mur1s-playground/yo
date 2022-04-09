@@ -7,6 +7,7 @@ import android.media.Image;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.ArrayMap;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
@@ -27,7 +28,9 @@ public class MainActivity extends AppCompatActivity {
     static String               files_internal_path = null;
     static String               settings_path       = null;
 
-    LinearLayout menu_inc       = null;
+    LinearLayout                        menu_inc               = null;
+    Spinner                             channel_filter         = null;
+    ChannelFilterAdapter                channel_filter_adapter = null;
 
     LinearLayout lock_inc       = null;
     SeekBar lock_seek_bar       = null;
@@ -85,12 +88,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void updateChatInput(boolean connect, String channels) {
+        String channels_arr[] = channels.split(",");
+        if (channels.length() < 2) {
+            channel_filter.setVisibility(View.GONE);
+            ChannelFilterAdapter.setChannelEnabled(channels_arr[0], true);
+        } else {
+            channel_filter.setVisibility(View.VISIBLE);
+            channel_filter_adapter = new ChannelFilterAdapter(getApplicationContext(), channels_arr);
+            channel_filter.setAdapter(channel_filter_adapter);
+        }
         if (!connect || Settings.getStringSetting(Settings.SETTING_IRC_NICK).toLowerCase(Locale.ROOT).startsWith("justinfan")) {
             chat_select.setVisibility(View.GONE);
             chat_input.setVisibility(View.GONE);
             chat_send.setVisibility(View.GONE);
         } else {
-            String channels_arr[] = channels.split(",");
             ArrayAdapter<String> channels_adapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_spinner_item, channels_arr);
             chat_select.setAdapter(channels_adapter);
             if (channels.split(",").length > 1) {
@@ -291,6 +302,7 @@ public class MainActivity extends AppCompatActivity {
                 openSettings();
             }
         });
+        channel_filter = (Spinner) menu_inc.findViewById(R.id.spinnerChannelFilter);
 
         /* LOCK */
         lock_inc = (LinearLayout) this.findViewById(R.id.lock_inc);

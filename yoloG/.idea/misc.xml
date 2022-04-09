@@ -6,6 +6,7 @@
         <entry key="app/src/main/res/drawable-anydpi/ic_action_name.xml" value="0.2815" />
         <entry key="app/src/main/res/drawable/ic_launcher_background.xml" value="0.2815" />
         <entry key="app/src/main/res/layout/activity_main.xml" value="0.2115036231884058" />
+        <entry key="app/src/main/res/layout/channel_filter_spinner_item.xml" value="0.32447916666666665" />
         <entry key="app/src/main/res/layout/chat.xml" value="0.1" />
         <entry key="app/src/main/res/layout/chat_message.xml" value="0.15" />
         <entry key="app/src/main/res/layout/content.xml" value="0.2115036231884058" />

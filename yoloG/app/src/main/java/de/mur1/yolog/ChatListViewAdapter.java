@@ -27,6 +27,7 @@ public class ChatListViewAdapter extends ArrayAdapter<IRCMessage> {
         if (convertView == null) {
             convertView = layout_inflater.inflate(R.layout.chat_message, null);
         }
+
         ChatMessageItem cmi = new ChatMessageItem(convertView, items.get(position));
         convertView.setTag(cmi);
         return convertView;
